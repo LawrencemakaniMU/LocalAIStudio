@@ -1,0 +1,10 @@
+{
+  "app_name": "My AI Studio",
+  "tagline": "Your local AI assistant",
+  "model_name": "REPLACE_WITH_YOUR_GGUF_MODEL_NAME",
+  "llama_server_url": "http://127.0.0.1:8080/v1/chat/completions",
+  "system_prompt": "You are a helpful, honest assistant. Discuss sensitive topics respectfully and directly. Distinguish facts from uncertainty, do not invent sources, and ask clarifying questions when needed. Do not provide instructions that would facilitate serious harm or abuse.",
+  "temperature": 0.7,
+  "max_tokens": 1024,
+  "retrieve_chunks": 4
+}

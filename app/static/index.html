@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My AI Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#111318;--panel:#191c23;--panel2:#222631;--text:#f2f4f8;--muted:#a5adbd;--line:#333947;--accent:#a9b8ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,Segoe UI,Arial}
+.app{display:grid;grid-template-columns:260px 1fr;height:100vh}.side{background:#15171d;border-right:1px solid var(--line);padding:18px;display:flex;flex-direction:column;gap:14px}
+.brand{font-weight:750;font-size:19px}.muted{color:var(--muted);font-size:13px}.btn,button{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:10px 12px;border-radius:10px;cursor:pointer}
+.btn:hover,button:hover{border-color:var(--accent)}.side-bottom{margin-top:auto}.main{display:flex;flex-direction:column;min-width:0}
+.top{padding:16px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.messages{flex:1;overflow:auto;padding:24px max(20px,calc((100% - 850px)/2));display:flex;flex-direction:column;gap:18px}
+.welcome{margin:auto;max-width:600px;text-align:center}.welcome h1{font-size:30px;margin-bottom:8px}.bubble{max-width:850px;padding:14px 16px;border:1px solid var(--line);border-radius:15px;white-space:pre-wrap;overflow-wrap:anywhere}.user{align-self:flex-end;background:#262b38}.assistant{align-self:flex-start;background:var(--panel)}
+.composer-wrap{padding:14px 20px 20px;border-top:1px solid var(--line)}.composer{max-width:850px;margin:auto;display:flex;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:10px}
+textarea,input{width:100%;background:transparent;color:var(--text);border:0;outline:0;font:inherit;resize:vertical}textarea{min-height:48px;max-height:180px}.hint{text-align:center;color:var(--muted);font-size:12px;margin-top:8px}
+.modal{display:none;position:fixed;inset:0;background:#000a;align-items:center;justify-content:center;padding:18px}.modal.open{display:flex}.settings{width:min(700px,100%);max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}.field{margin:14px 0}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}.field input,.field textarea{border:1px solid var(--line);border-radius:9px;padding:10px}.field textarea{min-height:150px}.row{display:flex;gap:10px;justify-content:flex-end}
+@media(max-width:700px){.app{grid-template-columns:1fr}.side{display:none}.top{padding:12px 16px}.messages{padding:18px}.composer-wrap{padding:10px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+  <div><div class="brand" id="sideBrand">My AI Studio</div><div class="muted" id="sideTag">Your local AI assistant</div></div>
+  <button id="newChat">＋ New chat</button>
+  <div class="muted">LOCAL WORKSPACE</div>
+  <div class="muted">Chats stay in this browser session in this starter version.</div>
+  <div class="side-bottom"><button id="openSettings" style="width:100%">⚙ Settings</button><p class="muted">Local prototype · No cloud AI API</p></div>
+</aside>
+<main class="main">
+  <header class="top"><div><strong id="topBrand">My AI Studio</strong><div class="muted" id="topTag">Your local AI assistant</div></div><button id="settingsTop">Settings</button></header>
+  <section class="messages" id="messages">
+    <div class="welcome" id="welcome"><h1>What would you like to explore?</h1><p class="muted">Your own locally running AI workspace. Ask a question or add your own documents to the knowledge folder.</p></div>
+  </section>
+  <div class="composer-wrap"><div class="composer"><textarea id="message" placeholder="Message your AI..." rows="1"></textarea><button id="send">Send ↑</button></div><div class="hint">Verify important answers. Retrieved documents may be incomplete or incorrect.</div></div>
+</main>
+</div>
+<div class="modal" id="modal"><div class="settings">
+<h2>Workspace settings</h2><p class="muted">Saved to config/settings.json on this computer.</p>
+<div class="field"><label>Assistant name</label><input id="sName" maxlength="80"></div>
+<div class="field"><label>Tagline</label><input id="sTag" maxlength="200"></div>
+<div class="field"><label>System instructions / behavior</label><textarea id="sPrompt" maxlength="12000"></textarea></div>
+<div class="field"><label>Temperature (0–2)</label><input id="sTemp" type="number" min="0" max="2" step=".1"></div>
+<div class="field"><label>Maximum answer tokens (64–8192)</label><input id="sTokens" type="number" min="64" max="8192"></div>
+<div class="field"><label>Retrieved passages (0–10)</label><input id="sChunks" type="number" min="0" max="10"></div>
+<div class="row"><button id="closeSettings">Cancel</button><button id="saveSettings">Save settings</button></div>
+<p id="settingsStatus" class="muted"></p>
+</div></div>
+<script>
+const $=id=>document.getElementById(id);
+let history=[];
+function addBubble(role,text){$('welcome')?.remove();const el=document.createElement('div');el.className='bubble '+role;el.textContent=text;$('messages').appendChild(el);$('messages').scrollTop=$('messages').scrollHeight;return el}
+async function sendMessage(){
+ const text=$('message').value.trim();if(!text)return;
+ $('message').value='';addBubble('user',text);$('send').disabled=true;
+ const pending=addBubble('assistant','Thinking…');
+ try{
+  const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history})});
+  const data=await res.json();if(!res.ok)throw new Error(data.detail||'Request failed');
+  pending.textContent=data.answer;
+  history.push({role:'user',content:text},{role:'assistant',content:data.answer});
+ }catch(e){pending.textContent='Error: '+e.message}
+ finally{$('send').disabled=false;$('message').focus()}
+}
+async function loadSettings(){
+ const s=await (await fetch('/api/settings')).json();
+ $('sName').value=s.app_name;$('sTag').value=s.tagline;$('sPrompt').value=s.system_prompt;
+ $('sTemp').value=s.temperature;$('sTokens').value=s.max_tokens;$('sChunks').value=s.retrieve_chunks;
+ $('sideBrand').textContent=$('topBrand').textContent=s.app_name;
+ $('sideTag').textContent=$('topTag').textContent=s.tagline;
+}
+function openModal(){$('modal').classList.add('open');loadSettings()}
+function closeModal(){$('modal').classList.remove('open')}
+$('send').onclick=sendMessage;
+$('message').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
+$('newChat').onclick=()=>{history=[];$('messages').innerHTML='<div class="welcome" id="welcome"><h1>What would you like to explore?</h1><p class="muted">Start a new conversation.</p></div>';$('message').focus()};
+$('openSettings').onclick=$('settingsTop').onclick=openModal;
+$('closeSettings').onclick=closeModal;
+$('saveSettings').onclick=async()=>{
+ const body={app_name:$('sName').value,tagline:$('sTag').value,system_prompt:$('sPrompt').value,temperature:Number($('sTemp').value),max_tokens:Number($('sTokens').value),retrieve_chunks:Number($('sChunks').value)};
+ try{const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Save failed');$('settingsStatus').textContent=d.message;await loadSettings()}catch(e){$('settingsStatus').textContent=e.message}
+};
+loadSettings();
+</script>
+</body></html>
